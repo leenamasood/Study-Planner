@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Planner</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        const { useState, useEffect, createElement: h } = React;
+
+        function StudyPlanner() {
+            const [classes, setClasses] = useState([]);
+            const [assignments, setAssignments] = useState([]);
+            const [newClassName, setNewClassName] = useState('');
+            const [selectedClass, setSelectedClass] = useState('');
+            const [assignmentName, setAssignmentName] = useState('');
+            const [dueDate, setDueDate] = useState('');
+            const [showAddClass, setShowAddClass] = useState(false);
+
+            // Load data from localStorage
+            useEffect(() => {
+                const savedClasses = localStorage.getItem('studyPlannerClasses');
+                const savedAssignments = localStorage.getItem('studyPlannerAssignments');
+                
+                if (savedClasses) {
+                    setClasses(JSON.parse(savedClasses));
+                }
+                if (savedAssignments) {
+                    setAssignments(JSON.parse(savedAssignments));
+                }
+            }, []);
+
+            // Save data to localStorage
+            useEffect(() => {
+                localStorage.setItem('studyPlannerClasses', JSON.stringify(classes));
+            }, [classes]);
+
+            useEffect(() => {
+                localStorage.setItem('studyPlannerAssignments', JSON.stringify(assignments));
+            }, [assignments]);
+
+            // Add a new class
+            const addClass = () => {
+                if (newClassName.trim()) {
+                    const newClass = {
+                        id: Date.now(),
+                        name: newClassName.trim()
+                    };
+                    setClasses([...classes, newClass]);
+                    setNewClassName('');
+                    setShowAddClass(false);
+                }
+            };
+
+            // Delete a class
+            const deleteClass = (classId) => {
+                setClasses(classes.filter(c => c.id !== classId));
+                setAssignments(assignments.filter(a => a.classId !== classId));
+                if (selectedClass === classId.toString()) {
+                    setSelectedClass('');
+                }
+            };
+
+            // Add assignment
+            const addAssignment = () => {
+                if (assignmentName.trim() && dueDate && selectedClass) {
+                    const newAssignment = {
+                        id: Date.now(),
+                        name: assignmentName.trim(),
+                        dueDate: dueDate,
+                        classId: parseInt(selectedClass),
+                        completed: false
+                    };
+                    setAssignments([...assignments, newAssignment]);
+                    setAssignmentName('');
+                    setDueDate('');
+                }
+            };
+
+            // Toggle assignment completion
+            const toggleAssignment = (assignmentId) => {
+                setAssignments(assignments.map(a => 
+                    a.id === assignmentId ? { ...a, completed: !a.completed } : a
+                ));
+            };
+
+            // Delete assignment
+            const deleteAssignment = (assignmentId) => {
+                setAssignments(assignments.filter(a => a.id !== assignmentId));
+            };
+
+            // Get class name
+            const getClassName = (classId) => {
+                const cls = classes.find(c => c.id === classId);
+                return cls ? cls.name : 'Unknown Class';
+            };
+
+            // Format date
+            const formatDate = (dateString) => {
+                const date = new Date(dateString);
+                const today = new Date();
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                
+                if (date.toDateString() === today.toDateString()) {
+                    return 'Today';
+                } else if (date.toDateString() === tomorrow.toDateString()) {
+                    return 'Tomorrow';
+                } else {
+                    return date.toLocaleDateString();
+                }
+            };
+
+            // Check if overdue
+            const isOverdue = (dueDate) => {
+                return new Date(dueDate) < new Date().setHours(0, 0, 0, 0);
+            };
+
+            // Get sorted assignments
+            const sortedAssignments = [...assignments]
+                .filter(a => !a.completed)
+                .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+            const completedAssignments = assignments.filter(a => a.completed);
+
+            return h('div', {
+                className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6"
+            },
+                h('div', {
+                    className: "max-w-7xl mx-auto"
+                },
+                    h('h1', {
+                        className: "text-4xl font-bold text-gray-800 mb-8 text-center"
+                    }, "📚 Study Planner"),
+                    
+                    h('div', {
+                        className: "grid grid-cols-1 lg:grid-cols-3 gap-6"
+                    },
+                        // To-Do List Sidebar
+                        h('div', {
+                            className: "lg:col-span-1"
+                        },
+                            h('div', {
+                                className: "bg-white rounded-xl shadow-lg p-6 mb-6"
+                            },
+                                h('div', {
+                                    className: "flex items-center mb-4"
+                                },
+                                    h('span', {
+                                        className: "text-blue-500 mr-2 text-2xl"
+                                    }, "🕐"),
+                                    h('h2', {
+                                        className: "text-2xl font-bold text-gray-800"
+                                    }, "To-Do List")
+                                ),
+                                
+                                sortedAssignments.length === 0 ? 
+                                    h('p', {
+                                        className: "text-gray-500 italic"
+                                    }, "No pending assignments") :
+                                    h('div', {
+                                        className: "space-y-3"
+                                    },
+                                        sortedAssignments.map(assignment => 
+                                            h('div', {
+                                                key: assignment.id,
+                                                className: `p-3 rounded-lg border-l-4 ${
+                                                    isOverdue(assignment.dueDate) 
+                                                        ? 'border-red-500 bg-red-50' 
+                                                        : 'border-blue-500 bg-blue-50'
+                                                }`
+                                            },
+                                                h('div', {
+                                                    className: "flex items-start justify-between"
+                                                },
+                                                    h('div', {
+                                                        className: "flex-1"
+                                                    },
+                                                        h('h4', {
+                                                            className: "font-semibold text-gray-800"
+                                                        }, assignment.name),
+                                                        h('p', {
+                                                            className: "text-sm text-gray-600"
+                                                        }, getClassName(assignment.classId)),
+                                                        h('p', {
+                                                            className: `text-sm font-medium ${
+                                                                isOverdue(assignment.dueDate) ? 'text-red-600' : 'text-blue-600'
+                                                            }`
+                                                        }, `Due: ${formatDate(assignment.dueDate)}`)
+                                                    ),
+                                                    h('div', {
+                                                        className: "flex items-center space-x-2"
+                                                    },
+                                                        h('button', {
+                                                            onClick: () => toggleAssignment(assignment.id),
+                                                            className: "text-green-600 hover:text-green-700 transition-colors px-2 py-1"
+                                                        }, "✓"),
+                                                        h('button', {
+                                                            onClick: () => deleteAssignment(assignment.id),
+                                                            className: "text-red-500 hover:text-red-600 transition-colors px-2 py-1"
+                                                        }, "×")
+                                                    )
+                                                )
+                                            )
+                                        )
+                                    )
+                            ),
+
+                            // Completed Assignments
+                            completedAssignments.length > 0 &&
+                            h('div', {
+                                className: "bg-white rounded-xl shadow-lg p-6"
+                            },
+                                h('div', {
+                                    className: "flex items-center mb-4"
+                                },
+                                    h('span', {
+                                        className: "text-green-500 mr-2 text-2xl"
+                                    }, "✅"),
+                                    h('h3', {
+                                        className: "text-xl font-bold text-gray-800"
+                                    }, "Completed")
+                                ),
+                                h('div', {
+                                    className: "space-y-2"
+                                },
+                                    completedAssignments.map(assignment => 
+                                        h('div', {
+                                            key: assignment.id,
+                                            className: "p-2 bg-green-50 rounded-lg border-l-4 border-green-500"
+                                        },
+                                            h('div', {
+                                                className: "flex items-center justify-between"
+                                            },
+                                                h('div', null,
+                                                    h('h4', {
+                                                        className: "font-medium text-gray-700 line-through"
+                                                    }, assignment.name),
+                                                    h('p', {
+                                                        className: "text-sm text-gray-500"
+                                                    }, getClassName(assignment.classId))
+                                                ),
+                                                h('button', {
+                                                    onClick: () => deleteAssignment(assignment.id),
+                                                    className: "text-red-500 hover:text-red-600 transition-colors px-2 py-1"
+                                                }, "×")
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        ),
+
+                        // Main Content Area
+                        h('div', {
+                            className: "lg:col-span-2"
+                        },
+                            // Class Management
+                            h('div', {
+                                className: "bg-white rounded-xl shadow-lg p-6 mb-6"
+                            },
+                                h('div', {
+                                    className: "flex items-center justify-between mb-4"
+                                },
+                                    h('div', {
+                                        className: "flex items-center"
+                                    },
+                                        h('span', {
+                                            className: "text-indigo-500 mr-2 text-2xl"
+                                        }, "📚"),
+                                        h('h2', {
+                                            className: "text-2xl font-bold text-gray-800"
+                                        }, "My Classes")
+                                    ),
+                                    h('button', {
+                                        onClick: () => setShowAddClass(true),
+                                        className: "bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-600 transition-colors"
+                                    }, "+ Add Class")
+                                ),
+
+                                showAddClass &&
+                                h('div', {
+                                    className: "mb-4 p-4 bg-indigo-50 rounded-lg"
+                                },
+                                    h('div', {
+                                        className: "flex items-center space-x-3"
+                                    },
+                                        h('input', {
+                                            type: "text",
+                                            value: newClassName,
+                                            onChange: (e) => setNewClassName(e.target.value),
+                                            placeholder: "Enter class name...",
+                                            className: "flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500",
+                                            onKeyPress: (e) => e.key === 'Enter' && addClass()
+                                        }),
+                                        h('button', {
+                                            onClick: addClass,
+                                            className: "bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-600 transition-colors"
+                                        }, "Add"),
+                                        h('button', {
+                                            onClick: () => {
+                                                setShowAddClass(false);
+                                                setNewClassName('');
+                                            },
+                                            className: "bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
+                                        }, "Cancel")
+                                    )
+                                ),
+
+                                classes.length === 0 ? 
+                                    h('p', {
+                                        className: "text-gray-500 italic"
+                                    }, "No classes added yet. Add your first class to get started!") :
+                                    h('div', {
+                                        className: "grid grid-cols-1 md:grid-cols-2 gap-4"
+                                    },
+                                        classes.map(cls => {
+                                            const classAssignments = assignments.filter(a => a.classId === cls.id);
+                                            const pendingCount = classAssignments.filter(a => !a.completed).length;
+                                            
+                                            return h('div', {
+                                                key: cls.id,
+                                                className: "p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-300 transition-colors"
+                                            },
+                                                h('div', {
+                                                    className: "flex items-center justify-between"
+                                                },
+                                                    h('div', null,
+                                                        h('h3', {
+                                                            className: "text-lg font-semibold text-gray-800"
+                                                        }, cls.name),
+                                                        h('p', {
+                                                            className: "text-sm text-gray-600"
+                                                        }, 
+                                                            `${classAssignments.length} total assignments`,
+                                                            pendingCount > 0 ? ` • ${pendingCount} pending` : ""
+                                                        )
+                                                    ),
+                                                    h('button', {
+                                                        onClick: () => deleteClass(cls.id),
+                                                        className: "text-red-500 hover:text-red-600 transition-colors px-2 py-1 text-xl"
+                                                    }, "×")
+                                                )
+                                            );
+                                        })
+                                    )
+                            ),
+
+                            // Assignment Entry
+                            h('div', {
+                                className: "bg-white rounded-xl shadow-lg p-6"
+                            },
+                                h('div', {
+                                    className: "flex items-center mb-4"
+                                },
+                                    h('span', {
+                                        className: "text-purple-500 mr-2 text-2xl"
+                                    }, "📅"),
+                                    h('h2', {
+                                        className: "text-2xl font-bold text-gray-800"
+                                    }, "Add Assignment")
+                                ),
+
+                                classes.length === 0 ? 
+                                    h('p', {
+                                        className: "text-gray-500 italic"
+                                    }, "Please add at least one class before creating assignments.") :
+                                    h('div', {
+                                        className: "space-y-4"
+                                    },
+                                        h('div', null,
+                                            h('label', {
+                                                className: "block text-sm font-medium text-gray-700 mb-2"
+                                            }, "Select Class"),
+                                            h('select', {
+                                                value: selectedClass,
+                                                onChange: (e) => setSelectedClass(e.target.value),
+                                                className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            },
+                                                h('option', { value: "" }, "Choose a class..."),
+                                                classes.map(cls => 
+                                                    h('option', {
+                                                        key: cls.id,
+                                                        value: cls.id
+                                                    }, cls.name)
+                                                )
+                                            )
+                                        ),
+
+                                        h('div', null,
+                                            h('label', {
+                                                className: "block text-sm font-medium text-gray-700 mb-2"
+                                            }, "Assignment Name"),
+                                            h('input', {
+                                                type: "text",
+                                                value: assignmentName,
+                                                onChange: (e) => setAssignmentName(e.target.value),
+                                                placeholder: "Enter assignment name...",
+                                                className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            })
+                                        ),
+
+                                        h('div', null,
+                                            h('label', {
+                                                className: "block text-sm font-medium text-gray-700 mb-2"
+                                            }, "Due Date"),
+                                            h('input', {
+                                                type: "date",
+                                                value: dueDate,
+                                                onChange: (e) => setDueDate(e.target.value),
+                                                className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            })
+                                        ),
+
+                                        h('button', {
+                                            onClick: addAssignment,
+                                            disabled: !assignmentName.trim() || !dueDate || !selectedClass,
+                                            className: "w-full bg-purple-500 text-white py-3 px-4 rounded-lg hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+                                        }, "Add Assignment")
+                                    )
+                            )
+                        )
+                    )
+                )
+            );
+        }
+
+        // Render the app
+        ReactDOM.render(React.createElement(StudyPlanner), document.getElementById('root'));
+    </script>
+</body>
+</html>
